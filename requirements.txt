@@ -4,4 +4,4 @@ gymnasium-robotics==1.2.2
 stable-baselines3==2.2.1
 tensorboard==2.20.0
 tqdm
-movipy==1.0.3
+moviepy==1.0.3
