@@ -1,3 +1,4 @@
+.idea
 .vscode
 .history
 .pytest_cache
@@ -8,3 +9,6 @@ figs/
 logs/
 new_logs/
 *.job
+model/
+pick_and_place_model.md
+videos/
