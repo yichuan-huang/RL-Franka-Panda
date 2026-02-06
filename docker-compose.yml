@@ -1,0 +1,16 @@
+services:
+  rl-franka-panda:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rl-franka-panda:cu128
+    container_name: rl-franka-panda
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    gpus: all
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
+    volumes:
+      - ./:/workspace
