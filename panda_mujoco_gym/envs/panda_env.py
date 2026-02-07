@@ -37,13 +37,19 @@ class FrankaEnv(MujocoRobotEnv):
         # Tunable weights for dense reward
         w_progress: float = 2.0,
         w_distance: float = -1.0,
-        w_action: float = -0.001,
-        w_action_change: float = -0.005,
-        w_smooth: float = -0.002,
+        w_action: float = -1e-4,
+        w_action_change: float = -1e-4,
+        w_smooth: float = 0.0,
         w_height: float = 0.5,
-        w_gripper: float = 0.3,
+        w_gripper: float = 0.0,
+        w_obj_goal: float = 2.0,
+        w_ee_obj: float = 0.5,
+        w_lift: float = 0.0,
+        gripper_activation_distance: float = 0.05,
+        place_activation_height: float = 0.0,
+        success_activation_height: float = 0.0,
         success_reward: float = 10.0,
-        terminal_bonus: float = 20.0,
+        terminal_bonus: float = 0.0,
         progress_clip: float = 0.1,
         progress_horizon: int = 3,
         vel_ema_tau: float = 0.95,
@@ -85,6 +91,12 @@ class FrankaEnv(MujocoRobotEnv):
         self.w_smooth = float(w_smooth)
         self.w_height = float(w_height)
         self.w_gripper = float(w_gripper)
+        self.w_obj_goal = float(w_obj_goal)
+        self.w_ee_obj = float(w_ee_obj)
+        self.w_lift = float(w_lift)
+        self.gripper_activation_distance = float(gripper_activation_distance)
+        self.place_activation_height = float(place_activation_height)
+        self.success_activation_height = float(success_activation_height)
         self.success_reward = float(success_reward)
         self.terminal_bonus = float(terminal_bonus)
         self.progress_clip = float(progress_clip)
@@ -257,60 +269,60 @@ class FrankaEnv(MujocoRobotEnv):
         action: Optional[np.ndarray] = None,
         obs_dict: Optional[dict] = None,
     ) -> SupportsFloat:
-        d = float(self.goal_distance(achieved_goal, desired_goal))
-
         if self.reward_type == "sparse":
             return 1.0 if info.get("is_success", False) else -1.0
 
-        # Dense reward components (linear weights + smoothing)
+        obj_pos = np.asarray(achieved_goal, dtype=np.float64)
+        goal_pos = np.asarray(desired_goal, dtype=np.float64)
+        ee_pos = np.asarray(self.get_ee_position(), dtype=np.float64)
+
+        d_og = float(np.linalg.norm(obj_pos - goal_pos))
+        d_eo = float(np.linalg.norm(ee_pos - obj_pos))
+        lift = float(obj_pos[2] - self.initial_object_height)
+        lift_pos = max(0.0, lift)
+        prev_lift_pos = 0.0
+        if self.prev_achieved_goal is not None:
+            prev_obj_pos = np.asarray(self.prev_achieved_goal, dtype=np.float64)
+            prev_lift = float(prev_obj_pos[2] - self.initial_object_height)
+            prev_lift_pos = max(0.0, prev_lift)
+        delta_lift = max(0.0, lift_pos - prev_lift_pos)
+        # Optional anti-spike clip:
+        # delta_lift = min(delta_lift, 0.02)
+
+        if not self.block_gripper:
+            gripper_width = float(self.get_fingers_width())
+        else:
+            gripper_width = None
+
+        success = d_og < self.distance_threshold
+        if self.success_activation_height > 0.0:
+            success = success and (lift_pos >= self.success_activation_height)
+
         reward_components: dict[str, float] = {}
 
-        # Distance penalty
-        reward_components["distance"] = self.w_distance * d
+        obj_goal_gate = 1.0
+        if self.place_activation_height > 0.0 and lift_pos < self.place_activation_height:
+            obj_goal_gate = 0.0
+        obj_goal = -d_og
+        reward_components["obj_goal"] = self.w_obj_goal * obj_goal * obj_goal_gate
+        reward_components["ee_obj"] = self.w_ee_obj * (-d_eo)
+        reward_components["lift"] = self.w_lift * delta_lift
 
-        # Progress reward based on previous distance
-        prev_distance = None
-        if self.prev_achieved_goal is not None:
-            prev_distance = float(
-                self.goal_distance(self.prev_achieved_goal, desired_goal)
-            )
-        elif self.previous_distance is not None:
-            prev_distance = float(self.previous_distance)
-
-        progress_raw = 0.0
-        if prev_distance is not None:
-            progress_raw = float(prev_distance - d)
-            # Symmetric clip, allow larger positive progress
-            if progress_raw > 0:
-                progress_raw = min(progress_raw, self.progress_clip * 2)
-            else:
-                progress_raw = max(progress_raw, -self.progress_clip)
-        reward_components["progress"] = self.w_progress * progress_raw
-
-        # Gripper coordination reward when ee is close to the object
         gripper_component = 0.0
-        if not self.block_gripper:
-            ee_pos = self.get_ee_position()
-            ee_obj_distance = float(np.linalg.norm(ee_pos - achieved_goal))
-            gripper_width = float(self.get_fingers_width())  # fingers sum
-            if ee_obj_distance < 0.05:
-                gripper_component = self.w_gripper * (
-                    -abs(gripper_width - self.gripper_target_width)
-                )
+        if (
+            not self.block_gripper
+            and gripper_width is not None
+            and d_eo < self.gripper_activation_distance
+        ):
+            gripper_component = self.w_gripper * (
+                -abs(gripper_width - self.gripper_target_width)
+            )
         reward_components["gripper"] = gripper_component
 
-        # Height bonus
-        height_bonus = max(0.0, float(achieved_goal[2] - self.initial_object_height))
-        reward_components["height"] = self.w_height * height_bonus
-
-        # Smoothness penalty using EMA of ee velocity
         smooth_penalty = 0.0
         if obs_dict is not None:
             observation = obs_dict["observation"]
-            if not self.block_gripper:
-                ee_vel_dt = observation[3:6]
-            else:
-                ee_vel_dt = observation[3:6]
+            ee_vel_dt = observation[3:6]
             ee_velocity = ee_vel_dt / max(self.dt, 1e-8)
             self.vel_ema = (
                 self.vel_ema_tau * self.vel_ema + (1.0 - self.vel_ema_tau) * ee_velocity
@@ -318,7 +330,6 @@ class FrankaEnv(MujocoRobotEnv):
             smooth_penalty = float(np.linalg.norm(self.vel_ema))
         reward_components["smooth"] = self.w_smooth * smooth_penalty
 
-        # Action magnitude and action change penalties
         action_component = 0.0
         action_change_component = 0.0
         if action is not None:
@@ -330,9 +341,7 @@ class FrankaEnv(MujocoRobotEnv):
         reward_components["action"] = action_component
         reward_components["action_change"] = action_change_component
 
-        # Success reward
-        success_component = self.success_reward if d < self.distance_threshold else 0.0
-        reward_components["success"] = success_component
+        reward_components["success"] = self.success_reward if success else 0.0
 
         total_reward = float(sum(reward_components.values()))
         info["reward_components"] = reward_components
@@ -458,8 +467,12 @@ class FrankaEnv(MujocoRobotEnv):
         return obs
 
     def _is_success(self, achieved_goal, desired_goal) -> np.float32:
-        d = self.goal_distance(achieved_goal, desired_goal)
-        return (d < self.distance_threshold).astype(np.float32)
+        d = float(self.goal_distance(achieved_goal, desired_goal))
+        success = d < self.distance_threshold
+        if self.success_activation_height > 0.0:
+            lift = float(achieved_goal[2] - self.initial_object_height)
+            success = success and (max(0.0, lift) >= self.success_activation_height)
+        return np.float32(success)
 
     def _render_callback(self) -> None:
         sites_offset = (self.data.site_xpos - self.model.site_pos).copy()
