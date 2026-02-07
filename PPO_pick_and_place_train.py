@@ -7,10 +7,10 @@ env = gym.make("FrankaPickAndPlaceSparse-v0", render_mode="rgb_array")
 model = PPO("MultiInputPolicy", env, verbose=1)
 start_time = time.time()
 model.learn(total_timesteps=1000000)
-model.save('model/PPO_pick_and_place.zip')
+model.save("model/PPO_pick_and_place.zip")
 end_time = time.time()
-with open('ppo_pick_and_place_train_time.txt', 'w') as opener:
-    opener.write('spend_tine:{}'.format(end_time - start_time))
+with open("ppo_pick_and_place_train_time.txt", "w") as opener:
+    opener.write("spend_time:{}".format(end_time - start_time))
 
 vec_env = model.get_env()
 obs = vec_env.reset()

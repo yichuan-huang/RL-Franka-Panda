@@ -36,7 +36,7 @@ model.learn(total_timesteps=1000000, callback=progress_callback)
 model.save("model/SAC_pick_and_place.zip")
 end_time = time.time()
 with open("./logs/sac_pick_and_place/sac_pick_and_place_train_time.txt", "w") as opener:
-    opener.write("spend_tine:{}".format(end_time - start_time))
+    opener.write("spend_time:{}".format(end_time - start_time))
 
 vec_env = model.get_env()
 obs = vec_env.reset()
