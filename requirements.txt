@@ -2,6 +2,8 @@ mujoco==2.3.3
 gymnasium==0.29.1
 gymnasium-robotics==1.2.2
 stable-baselines3==2.2.1
+sb3-contrib==2.2.1
 tensorboard==2.20.0
 tqdm
+imageio
 moviepy==1.0.3

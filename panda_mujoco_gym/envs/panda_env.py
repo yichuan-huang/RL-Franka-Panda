@@ -48,7 +48,7 @@ class FrankaEnv(MujocoRobotEnv):
         gripper_activation_distance: float = 0.05,
         place_activation_height: float = 0.0,
         success_activation_height: float = 0.0,
-        success_reward: float = 10.0,
+        success_reward: float = 30.0,
         terminal_bonus: float = 0.0,
         progress_clip: float = 0.1,
         progress_horizon: int = 3,

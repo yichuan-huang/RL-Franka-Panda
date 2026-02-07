@@ -24,7 +24,7 @@ class FrankaPickAndPlaceEnv(FrankaEnv):
             w_lift=5.0,  # Lift shaping weight (key for pick)
             w_gripper=0.2,  # Optional gripper shaping weight (set to 0.0 to disable)
             place_activation_height=0.05,  # Enable object-to-goal shaping only after lifting above this height (prevents "pushing" loophole)
-            success_activation_height=0,  # Success also requires lifting above this height (set to 0.0 to disable)
+            success_activation_height=0.0,  # Success also requires lifting above this height (set to 0.0 to disable)
             # --- Regularization terms: keep small/disabled initially ---
             w_action=-1e-4,  # Action magnitude penalty weight (small)
             w_action_change=-1e-4,  # Action change penalty weight (small)
