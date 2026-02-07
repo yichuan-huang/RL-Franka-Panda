@@ -7,7 +7,7 @@ MODEL_XML_PATH = os.path.join(
 
 
 class FrankaPickAndPlaceEnv(FrankaEnv):
-    def __init__(self, reward_type="dense", **kwargs):
+    def __init__(self, reward_type, **kwargs):
         super().__init__(
             model_path=MODEL_XML_PATH,
             n_substeps=25,
@@ -23,7 +23,7 @@ class FrankaPickAndPlaceEnv(FrankaEnv):
             w_ee_obj=1.0,  # End-effector-to-object (reach) shaping weight
             w_lift=5.0,  # Lift shaping weight (key for pick)
             w_gripper=0.2,  # Optional gripper shaping weight (set to 0.0 to disable)
-            place_activation_height=0.05,  # Enable object-to-goal shaping only after lifting above this height (prevents "pushing" loophole)
+            place_activation_height=0.0,  # Enable object-to-goal shaping only after lifting above this height (prevents "pushing" loophole)
             success_activation_height=0.0,  # Success also requires lifting above this height (set to 0.0 to disable)
             # --- Regularization terms: keep small/disabled initially ---
             w_action=-1e-4,  # Action magnitude penalty weight (small)
